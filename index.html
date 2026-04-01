@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Deadline Collapse: Ship It</title>
+        <link rel="stylesheet" href="style.css"> 
+    </head>
+    <body>
+        <header id="top-bar">
+            <span id="company-name">Deadline Collapse</span>
+            <div class="stat">WEEK <span id="week">1</span></div>
+            <div class="stat">MONEY <span id="money">$10,000</span></div>
+            <div class="stat">REPUTATION <span id="reputation">100</span></div>
+            <div class="stat">EMPLOYEES <span id="employees">3</span></div>
+            <div id="speed-controls">
+                <button class="speed-btn active" id="btn-pause">⏸</button>
+                <button class="speed-btn" id="btn-1x">1x</button>
+                <button class="speed-btn" id="btn-2x">2x</button>
+                <button class="speed-btn" id="btn-3x">3x</button>
+            </div>
+        </header>
+
+        <div id="main-area">
+            <aside id="left-panel">
+                <div class="panel-title">EVENTS</div>
+                <div id="event-box">Awaiting decisions...</div>
+                <div id="actions">
+                    <div class="panel-title">Actions</div>
+                    <button class="action-btn" id="btn-rest">☕ Team break <span class="cost">-$500</span></button>
+                    <button class="action-btn" id="btn-save">💾 Save Game</button>
+                    <button class="action-btn" id="btn-hire">👤 Hire Employee <span class="cost">-$1,500</span></button>
+                    <button class="action-btn" id="btn-fix-bugs">🔧 Fix Bugs <span class="cost">-$800</span></button>
+                </div>
+            </aside>
+
+            <main id="center-panel">
+                <canvas id="game-canvas"></canvas>
+            </main>
+
+            <aside id="right-panel">
+                <div>
+                    <div class="panel-title">Team</div>
+                    <div class="stat-row">Energy <span id="energy">100</span></div>
+                    <div class="stat-row">Motivation <span id="motivation">100</span></div>
+                </div>
+                <div>
+                    <div class="panel-title">Product</div>
+                    <div class="stat-row">Bugs <span id="bugs">0</span></div>
+                    <div class="stat-row">Features <span id="features">0</span></div>
+                    <div class="stat-row">Stability <span id="stability">100</span></div>
+                </div>
+            </aside>
+        </div>
+        <div id="event-modal" class="hidden">
+            <div id="event-modal-box">
+                <div id="event-modal-title"></div>
+                <div id="event-modal-text"></div>
+                <div id="event-modal-choices"></div>
+            </div>
+        </div>
+
+        <script src="game.js"></script>
+    </body>
+</html>

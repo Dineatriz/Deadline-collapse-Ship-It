@@ -1,0 +1,241 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --bg: #1E1F26;
+    --panel: #2A2C36;
+    --text: #EAEAF0;
+    --text-sec: #A8AAB5;
+    --accent: #FF7043;
+    --good: #4CAF50;
+    --warn: #FFC107;
+    --danger: #F44336;
+    --border: #3a3c4a;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#top-bar {
+    height: 56px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    gap: 32px;
+    flex-shrink: 0;
+}
+
+#company-name {
+    font-weight: bold;
+    font-size: 1rem;
+    color: var(--accent);
+    margin-right: auto;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 0.7rem;
+    color: var(--text-sec);
+    gap: 2px;
+}
+
+.stat span {
+    font-size: 0.95rem;
+    font-weight: bold;
+    color: var(--text);
+}
+
+#main-area {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 220px 1fr 220px;
+    overflow: hidden;
+}
+
+#left-panel {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+}
+
+#center-panel {
+    background: var(--bg);
+    position: relative;
+    overflow: hidden;
+}
+
+#game-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+#right-panel {
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow-y: auto;
+}
+
+.panel-title {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--accent);
+    margin-bottom: 4px;
+}
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: var(--text-sec);
+    margin-bottom: 4px;
+}
+
+.stat-row span {
+    color: var(--text);
+    font-weight: bold;
+}
+
+#event-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px;
+    font-size: 0.85rem;
+    color: var(--text-sec);
+    line-height: 1.5;
+}
+
+.action-btn {
+    width: 100%;
+    background: #2A2C36;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    padding: 8px 10px;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: border-color 0.2s;
+}
+
+.action-btn:hover {
+    border-color: var(--accent);
+}
+
+.action-btn .cost {
+    float: right;
+    color: var(--danger);
+    font-size: 0.75rem;
+}
+
+#speed-controls {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+}
+
+.speed-btn {
+    background: #1E1F26;
+    border: 1px solid var(--border);
+    color: var(--text-sec);
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.15s;
+}
+
+.speed-btn:hover {
+    border-color: var(--accent);
+    color: var(--text);
+}
+
+.speed-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: #2A2C36;
+}
+
+#event-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+#event-modal.hidden {
+    display: none;
+}
+
+#event-modal-box {
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 28px;
+    width: 420px;
+    max-width: 90vw;
+}
+
+#event-modal-title {
+    color: var(--warn);
+    font-weight: bold;
+    font-size: 1rem;
+    margin-bottom: 12px;
+}
+
+#event-modal-text {
+    color: var(--text);
+    font-size: 0.85rem;
+    line-height: 1.6;
+    margin-bottom: 16px;
+}
+
+#event-modal-choices {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.money-float {
+    position: fixed;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    font-weight: bold;
+    pointer-events: none;
+    animation: floatUp 1.5s ease-out forwards;
+    z-index: 999;
+}
+
+@keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-40px); }
+}
