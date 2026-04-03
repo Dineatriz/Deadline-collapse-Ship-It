@@ -15,7 +15,10 @@ const state = {
     team: { energy: 100, motivation: 100 },
     product: { bugs: 0, features: 0, stability: 100 },
     employees: [],
-    eventActive: false
+    eventActive: false,
+    researchPoints: 0,
+    project: null,
+    unlockedFeatures: []
 };
 
 const FLOOR = {
@@ -44,28 +47,27 @@ function getDesks() {
     const floorY = getFloorY();
     const w = canvas.width;
     return [
-        { x: w * 0.08, y: floorY },
-        { x: w * 0.22, y: floorY },
-        { x: w * 0.36, y: floorY },
-        { x: w * 0.54, y: floorY },
-        { x: w * 0.65, y: floorY },
-        { x: w * 0.82, y: floorY },
+        { x: w * 0.08, y: floorY, room: 'Dev' },
+        { x: w * 0.22, y: floorY, room: 'Dev' },
+        { x: w * 0.36, y: floorY, room: 'Dev' },
+        { x: w * 0.54, y: floorY, room: 'Designer' },
+        { x: w * 0.65, y: floorY, room: 'Designer' },
+        { x: w * 0.82, y: floorY, room: 'Manager' },
     ];
 }
 
-const ROLES = ['Dev', 'Dev', 'Designer', 'Designer', 'Manager', 'Manager'];
-const ROLE_COLOR = {
-    'Dev': '#3A86FF',
-    'Designer': '#FF7043',
-    'Manager': '#4CAF50'
-};
-
-function createEmployee(id) {
+function createEmployee(id, role) {
     const desks = getDesks();
-    const assignedDesk = desks[id % desks.length];
+    const roleToRoom = { 'Dev': 'Dev', 'Designer': 'Designer', 'Manager': 'Manager' };
+    const targetRoom = roleToRoom[role || ROLES[id % ROLES.length]];
+    const matching = desks.filter(d => d.room === targetRoom);
+    const occupied = state.employees.map(e => e.deskX);
+    const free = matching.filter(d => !occupied.includes(d.x));
+    const assignedDesk = free.length > 0 ? free[0] : matching[0];
+
     return {
         id,
-        role: ROLES[id % ROLES.length],
+        role: role || ROLES[id % ROLES.length],
         x: assignedDesk.x,
         targetX: assignedDesk.x,
         deskX: assignedDesk.x,
@@ -79,8 +81,16 @@ function createEmployee(id) {
     };
 }
 
+const ROLES = ['Dev', 'Dev', 'Designer', 'Designer', 'Manager', 'Manager'];
+const ROLE_COLOR = {
+    'Dev': '#3A86FF',
+    'Designer': '#FF7043',
+    'Manager': '#4CAF50'
+};
+
+const INITIAL_ROLES = ['Dev', 'Dev', 'Designer'];
 for (let i = 0; i < 3; i++) {
-    state.employees.push(createEmployee(i));
+    state.employees.push(createEmployee(i, INITIAL_ROLES[i]));
 }
 
 function drawRoom(room) {
@@ -259,12 +269,18 @@ function drawEmployee(emp) {
 
 
 function updateEmployees() {
+    const desks = getDesks();
     state.employees.forEach(emp => {
         const dx = emp.targetX - emp.x;
         emp.facingRight = dx > 0;
 
+        const roomDesks = desks.filter(d => d.room === emp.role);
+        const minX = Math.min(...roomDesks.map(d => d.x)) - 40;
+        const maxX = Math.max(...roomDesks.map(d => d.x)) + 40;
+
         if (Math.abs(dx) > 2) {
             emp.x += Math.sign(dx) * emp.speed;
+            emp.x = Math.max(minX, Math.min(maxX, emp.x));
             emp.working = false;
         } else {
             if (emp.idleTimer > 0) {
@@ -275,7 +291,7 @@ function updateEmployees() {
                     if (emp.workTimer <= 0) {
                         emp.working = false;
                         emp.idleTimer = 80 + Math.random() * 100;
-                        emp.targetX = emp.deskX + (Math.random() * 80 - 40);
+                        emp.targetX = Math.max(minX, Math.min(maxX, emp.deskX + (Math.random() * 80 - 40)));
                     }
                 } else {
                     emp.working = true;
@@ -337,6 +353,32 @@ function gameTick() {
         }
         emp.motivation = Math.max(0, emp.motivation - 1);
         emp.speed = 0.3 + (emp.energy / 100) * 0.7;
+
+        if (emp.skills) {
+            if (emp.role === 'Dev' && emp.working) {
+                if (emp.skills.bugFix && Math.random() < 0.05 * emp.skills.bugFix) {
+                    state.product.bugs = Math.max(0, state.product.bugs - 1);
+                }
+            }
+            if (emp.role === 'Designer') {
+                if (emp.skills.motivationAura && emp.skills.motivationAura > 0) {
+                    state.employees.forEach(other => {
+                        if (other.id !== emp.id) {
+                            other.motivation = Math.min(100, other.motivation + 0.05 * emp.skills.motivationAura);
+                        }
+                    });
+                }
+            }
+            if (emp.role === 'Manager') {
+                if (emp.skills.motivationBonus && emp.working) {
+                    state.employees.forEach(other => {
+                        if (other.role !== 'Manager') {
+                            other.motivation = Math.min(100, other.motivation + 0.1 * emp.skills.motivationBonus);
+                        }
+                    });
+                }
+            }
+        }
     });
 
     const count = state.employees.length;
@@ -389,14 +431,16 @@ function advanceWeek() {
     state.week++;
 
     const baseRevenue = 2000;
-    const featureBonus = state.product.features * 200;
-    const stabilityMultiplier = state.product.stability / 100;
-    const reputationMultiplier = state.reputation / 100;
-    const revenue = Math.round((baseRevenue + featureBonus) * stabilityMultiplier * reputationMultiplier);
-    const costs = state.employees.length * 800;
-    const profit = revenue - costs;
-    state.money += profit;
+    const featureBonus = (state.product.features || 0) * 200;
+    const stabilityMultiplier = (state.product.stability || 100) / 100;
+    const reputationMultiplier = (state.reputation || 100) / 100;
+    const revenue = Math.round((baseRevenue + featureBonus) * stabilityMultiplier * reputationMultiplier) || 0;
+    const costs = (state.employees.length || 0) * 800;
+    const profit = Number(revenue) - Number(costs);
+    state.money = Number(state.money || 10000) + profit;
+    console.log('Week calc:', {week: state.week, revenue, costs, profit, money: state.money});
     showMoneyFloat(profit, 'money');
+
 
     const avgMotivation = state.team.motivation;
     const newBugs = avgMotivation < 70 ? 4 : avgMotivation < 85 ? 2 : 1;
@@ -427,31 +471,85 @@ function advanceWeek() {
     }
 
     setSpeed(0);
+
+    if (state.project) {
+        state.project.weeksInDev++;
+        state.product.bugs += state.project.bugRisk * 0.5;
+        updateProjectPanel();
+    }
+
+    state.employees.forEach(emp => {
+        if (!emp.skills) return;
+        if (emp.role === 'Designer' && emp.skills.reputationBonus) {
+            state.reputation = Math.min(100, state.reputation + emp.skills.reputationBonus * 0.5);
+        }
+        if (emp.role === 'Manager' && emp.skills.costReduction) {
+
+        }
+    });
+
+    const rpGained = Math.floor(
+        state.employees
+            .filter(e => e.role === 'Dev')
+            .reduce((sum, e) => sum + 0.5 + (e.skills?.researchBonus || 0), 0) + 1
+    );
+    state.researchPoints += rpGained;
+    document.getElementById('research').textContent = state.researchPoints;
+
     showWeeklySummary(revenue, costs);
 }
+
+const rpGained = Math.floor(state.employees.filter(e => e.role === 'Dev').length * 0.5 + 1);
+state.researchPoints += rpGained;
+document.getElementById('research').textContent = state.researchPoints;
 
 function showWeeklySummary(revenue, costs) {
     const profit = revenue - costs;
     const profitColor = profit >= 0 ? 'var(--good)' : 'var(--danger)';
-    const box = document.getElementById('event-box');
+    const profitSign = profit >= 0 ? '+' : '';
 
-    box.innerHTML = `
-        <div style="color: var(--accent); font-weight: bold; margin-bottom: 10px;">
-            📅 Week ${state.week} Summary
-        </div>
-        <div class="stat-row">Revenue <span style="color: var(--good)">+$${revenue.toLocaleString()}</span></div>
-        <div class="stat-row">Costs <span style="color: var(--danger)">-$${costs.toLocaleString()}</span></div>
-        <div class="stat-row">Profit <span style="color: ${profitColor}">$${profit.toLocaleString()}</span></div>
-        <div class="stat-row" style="margin-top: 8px;">Bugs <span>${state.product.bugs}</span></div>
-        <div class="stat-row">Stability <span>${state.product.stability}</span></div>
-        <div style="margin-top: 12px;">
-            <button class="action-btn" id="btn-continue">▶ Continue to Week ${state.week + 1}</button>
-        </div>
+    let titleColor = 'var(--good)';
+    let titleText = `📅 Week ${state.week} - Holding steady`;
+    if (state.money < 3000 || state.reputation < 40) {
+        titleColor = 'var(--danger)';
+        titleText = `📅 Week ${state.week} - Things are bad`;
+    } else if (profit < 0 || state.product.bugs > 10) {
+        titleColor = 'var(--warn)';
+        titleText = `📅 Week ${state.week} - Watch out`;
+    }
+
+    const modal = document.getElementById('summary-modal');
+    const title = document.getElementById('summary-modal-title');
+    const body = document.getElementById('summary-modal-body');
+    const btn = document.getElementById('summary-continue');
+
+    title.style.color = titleColor;
+    title.textContent = titleText;
+
+    body.innerHTML = `
+    <div class="summary-row">Revenue <span style="color: var(--good)">+$${revenue.toLocaleString()}</span></div>
+    <div class="summary-row">Salaries <span style="color: var(--danger)">-$${costs.toLocaleString()}</span></div>
+    <div class="summary-row">Net <span style="color: ${profitColor}">${profitSign}$${profit.toLocaleString()}</span></div>
+    <hr class="summary-divider">
+    <div class="summary-row">Cash <span>$${state.money.toLocaleString()}</span></div>
+    <div class="summary-row">Reputation <span>${state.reputation}</span></div>
+    <hr class="summary-divider">
+    <div class="summary-row">Bugs <span style="color: ${state.product.bugs > 10 ? 'var(--danger)' : state.product.bugs > 5 ? 'var(--warn)' : 'var(--good)'}">${state.product.bugs}</span></div>
+    <div class="summary-row">Stability <span style="color: ${state.product.stability < 50 ? 'var(--danger)' : state.product.stability < 75 ? 'var(--warn)' : 'var(--good)'}">${state.product.stability}%</span></div>
+    <div class="summary-row">Features <span>${state.product.features}</span></div>
+    <hr class="summary-divider">
+    <div class="summary-row">Team Energy <span style="color: ${state.team.energy < 30 ? 'var(--danger)' : state.team.energy < 60 ? 'var(--warn)' : 'var(--good)'}">${state.team.energy}</span></div>
+    <div class="summary-row">Motivation <span style="color: ${state.team.motivation < 30 ? 'var(--danger)' : state.team.motivation < 60 ? 'var(--warn)' : 'var(--good)'}">${state.team.motivation}</span></div>
     `;
-    document.getElementById('btn-continue').addEventListener('click', () => {
-        box.innerHTML = 'Awaiting decisions...';
+    
+    btn.textContent = `▶ Continue to Week ${state.week + 1}`;
+    btn.onclick = () => {
+        modal.classList.add('hidden');
+        document.getElementById('event-box').innerHTML = 'Awaiting decisions...';
         setSpeed(1);
-    });
+    };
+
+    modal.classList.remove('hidden');
 }
 
 const EVENTS = [
@@ -528,6 +626,106 @@ const EVENTS = [
                 }
             }
         ]
+    },
+    {
+        id: 'investor_pressure',
+        text: '📈 An investor calls: "We expected more growth this quarter. We need to see results or we\'re pulling funding. What\'s your plan?"', 
+        choices: [
+            {
+                label: '🚀 Promise a big release next week',
+                effect: () => {
+                    state.product.bugs += 4;
+                    state.employees.forEach(emp => {
+                        emp.energy = Math.max(0, emp.energy - 20);
+                        emp.motivation =Math.max(0, emp.motivation - 10);
+                    });
+                    showMessage('Promised a big release. Team under pressure.');
+                }
+            },
+            {
+                label: '📊 Show current metrics honestly',
+                effect: () => {
+                    state.reputation = Math.max(0, state.reputation - 5);
+                    showMessage('Investor unhappy but respected the honesty.');
+                }
+            },
+            {
+                label: '💰 Offer equity to keep them calm',
+                effect: () => {
+                    state.money -= 3000;
+                    showMoneyFloat(-3000, 'money');
+                    showMessage('Investor satisfied. Cost you $3,000 in concessions.');
+                }
+            }
+        ]
+    },
+    {
+        id: 'key_dev_quits',
+        text: '😰 Your best Dev sends a resignation email: "I\'ve been offered a better position. My last day is Friday. Sorry."',
+        choices: [
+            {
+                label: '💸 Counter-offer with a raise',
+                effect: () => {
+                    state.money -= 2500;
+                    showMoneyFloat(-2500, 'money');
+                    state.employees.forEach(emp => {
+                        if (emp.role === 'Dev') emp.motivation = Math.min(100, emp.motivation + 20);
+                    });
+                    showMessage('Dev stayed. Cost you $2,500 but kept the knowledge.');
+                }
+            },
+            {
+                label: '👋 Let them go and hire new',
+                effect: () => {
+                    state.money -= 1500;
+                    showMoneyFloat(-1500, 'money');
+                    state.product.bugs += 3;
+                    showMessage('Dev left. Bugs increased during transition.');
+                }
+            },
+            {
+                label: '😤 Guilt-trip them into staying',
+                effect: () => {
+                    state.employees.forEach(emp => {
+                        emp.motivation = Math.max(0, emp.motivation - 10);
+                    });
+                    showMessage('Dev stayed... resentfully. Team morale dropped.');
+                }
+            }
+        ]
+    },
+    {
+        id: 'server_crash',
+        text: '🔥 The production server crashed. Clients are reporting outages. The team is scrambling. What do you do?',
+        choices: [
+            {
+                label: '⚡ All hands on deck - fix it now',
+                effect: () => {
+                    state.employees.forEach(emp => {
+                        emp.energy = Math.max(0, emp.energy - 40);
+                        emp.motivation = Math.max(0, emp.motivation - 15);
+                    });
+                    state.reputation = Math.min(100, state.reputation + 5);
+                    showMessage('Server fixed fast. Team exhausted but reputation held.');
+                }
+            },
+            {
+                label: '📧 Send clients an apology email',
+                effect: () => {
+                    state.reputation = Math.max(0, state.reputation - 8);
+                    showMessage('Clients acknowledged. Reputation took a hit.');
+                }
+            },
+            {
+                label: '💰 Hire emergency contractors',
+                effect: () => {
+                    state.money -= 2000;
+                    showMoneyFloat(-2000, 'money');
+                    state.reputation = Math.max(0, state.reputation - 3);
+                    showMessage('Contractors fixed it. Expensive but team spared.');
+                }
+            }
+        ]
     }
 ];
 
@@ -537,6 +735,15 @@ function rollEvent() {
     }
     if (state.team.motivation < 40 && Math.random() < 0.15) {
         return EVENTS.find(e => e.id === 'team_burnout');
+    }
+    if (state.week > 5 && Math.random() < 0.08) {
+        return EVENTS.find(e => e.id === 'investor_pressure');
+    }
+    if (state.team.motivation < 60 && Math.random() < 0.06) {
+        return EVENTS.find(e => e.id === 'key_dev_quits');
+    }
+    if (state.product.stability < 60 && Math.random() < 0.08) {
+        return EVENTS.find(e => e.id === 'server_crash');
     }
     return null;
 }
@@ -558,6 +765,7 @@ function gameLoop() {
                 advanceWeek();
             }
         }
+        document.getElementById('week-progress-bar').style.width = ((weekProgress / WEEK_FRAMES * 100) + '%');
     }
 
     render();
@@ -565,25 +773,29 @@ function gameLoop() {
 }
 
 function saveGame() {
+    if (isNaN(state.money) || isNaN(state.reputation)) {
+        console.warn('Save skipped: NaN in state');
+        return;
+    }
     const save = {
-        week: state.week,
-        money: state.money,
-        reputation: state.reputation,
-        team: state.team,
-        product: state.product,
-        employees: state.employees.map(emp => ({
+        week: Number(state.week) || 1,
+        money: Number(state.money),
+        reputation: Number(state.reputation),
+        team: state.team || {energy:100, motivation:100},
+        product: state.product || {bugs:0, features:0, stability:100},
+        employees: (state.employees || []).map(emp => ({
             id: emp.id,
-            role: emp.role,
-            x: emp.x,
-            deskX: emp.deskX,
-            targetX: emp.targetX,
-            energy: emp.energy,
-            motivation: emp.motivation,
-            working: emp.working,
-            workTimer: emp.workTimer,
-            idleTimer: emp.idleTimer,
-            facingRight: emp.facingRight,
-            speed: emp.speed,
+            role: emp.role || 'Dev',
+            x: Number(emp.x) || 0,
+            deskX: Number(emp.deskX) || 0,
+            targetX: Number(emp.targetX) || 0,
+            energy: Number(emp.energy) || 100,
+            motivation: Number(emp.motivation) || 100,
+            working: !!emp.working,
+            workTimer: Number(emp.workTimer) || 0,
+            idleTimer: Number(emp.idleTimer) || 0,
+            facingRight: !!emp.facingRight,
+            speed: Number(emp.speed) || 1,
         }))
     };
     localStorage.setItem('deadlineCollapse_save', JSON.stringify(save));
@@ -596,24 +808,34 @@ function loadGame() {
     const raw = localStorage.getItem('deadlineCollapse_save');
     if (!raw) return false;
 
-    const save = JSON.parse(raw);
-    state.week = save.week;
-    state.money = save.money;
-    state.reputation = save.reputation;
-    state.team = save.team;
-    state.product = save.product;
-    state.employees = save.employees;
+    try {
+        const save = JSON.parse(raw);
+        state.week = Number(save.week) || 1;
+        state.money = Number(save.money) || 10000;
+        if (isNaN(state.money)) state.money = 10000;
+        state.reputation = Number(save.reputation) || 100;
+        if (isNaN(state.reputation)) state.reputation = 100;
+        state.team = save.team || {energy:100, motivation:100};
+        state.product = save.product || {bugs:0, features:0, stability:100};
+        state.employees = save.employees || [];
 
-    document.getElementById('week').textContent = state.week;
-    document.getElementById('money').textContent = '$' + state.money.toLocaleString();
-    document.getElementById('reputation').textContent = state.reputation;
-    document.getElementById('energy').textContent = state.team.energy;
-    document.getElementById('motivation').textContent = state.team.motivation;
-    document.getElementById('bugs').textContent = state.product.bugs;
-    document.getElementById('stability').textContent = state.product.stability;
-    document.getElementById('features').textContent = state.product.features;
+        // Update UI
+        document.getElementById('week').textContent = state.week;
+        document.getElementById('money').textContent = '$' + state.money.toLocaleString();
+        document.getElementById('reputation').textContent = state.reputation;
+        document.getElementById('energy').textContent = state.team.energy;
+        document.getElementById('motivation').textContent = state.team.motivation;
+        document.getElementById('bugs').textContent = state.product.bugs;
+        document.getElementById('stability').textContent = state.product.stability;
+        document.getElementById('features').textContent = state.product.features;
 
-    return true;
+        console.log('Loaded state:', {money: state.money, reputation: state.reputation});
+        return true;
+    } catch (e) {
+        console.error('Load failed:', e);
+        localStorage.removeItem('deadlineCollapse_save');
+        return false;
+    }
 }
 
 function showMoneyFloat(amount, anchorElementId) {
@@ -637,7 +859,300 @@ if (!loaded) {
     showMessage('New game started. Good luck.');
 }
 
+const ALL_FEATURES = [
+    { id: 'auth', name: 'User Authentication', desc: 'Login/signup system', rpCost: 0, revenueBonus: 300, bigRisk: 1 },
+    { id: 'dashboard', name: 'Analytics Dashboard', desc: 'Usage stats for clients', rpCost: 0, revenueBonus: 400, bugRisk: 2 },
+    { id: 'api', name: 'Public API', desc: 'Let clients integrate', rpCost: 3, revenueBonus: 600, bugRisk: 3 },
+    { id: 'mobile', name: 'Mobile Support', desc: 'iOS and Android ready', rpCost: 5, revenueBonus: 800, bugRisk: 4 },
+    { id: 'ai', name: 'AI Integration', desc: 'Smart recommendations', rpCost: 8, revenueBonus: 1200, bugRisk: 5 },
+    { id: 'offline', name: 'Offline Mode', desc: 'Works without internet', rpCost: 4, revenueBonus: 500, bugRisk: 3 },
+    { id: 'collab', name: 'Real-time Collaboration', desc: 'Multiple users at once', rpCost: 6, revenueBonus: 900, bugRisk: 4 },
+];
+
+function openProjectModal() {
+    if (state.project) {
+        showMessage('Already working on a project. Ship it first.');
+        return;
+    }
+
+    const modal = document.getElementById('project-modal');
+    const featureList = document.getElementById('feature-list');
+    featureList.innerHTML = '';
+
+    ALL_FEATURES.forEach(f => {
+        const unlocked = f.rpCost === 0 || state.researchPoints >= f.rpCost || state.unlockedFeatures.includes(f.id);
+        const div = document.createElement('div');
+        div.className = 'feature-option' + (unlocked ? '' : ' locked');
+        div.dataset.id = f.id;
+        div.innerHTML = `
+        <input type="checkbox" ${unlocked ? '' : 'disabled'} data-id="${f.id}">
+        <div>
+            <div style="font-weight: bold; color: var(--text)">${f.name}</div>
+            <div style="font-size: 0.75rem">${f.desc}</div>
+        </div>
+        <div class="rp-cost">${f.rpCost > 0 && !state.unlockedFeatures.includes(f.id) ? `🔬 ${f.rpCost} RP to unlock` : `+$${f.revenueBonus}/week`}</div>
+        `;
+
+        if (unlocked) {
+            div.addEventListener('click', () => {
+                const cb = div.querySelector('input[type="checkbox"]');
+                const selected = featureList.querySelectorAll('input:checked').length;
+                if (!cb.checked && selected >= 3) {
+                    showMessage('Maximum 3 features per project.');
+                    return;
+                }
+                cb.checked = !cb.checked;
+                div.classList.toggle('selected', cb.checked);
+            });
+        }
+
+        featureList.appendChild(div);
+    });
+
+    modal.classList.remove('hidden');
+}
+
+document.getElementById('btn-cancel-project').addEventListener('click', () => {
+    document.getElementById('project-modal').classList.add('hidden');
+    resetProjectModal();
+});
+
+document.getElementById('btn-start-project').addEventListener('click', () => {
+    const name = document.getElementById('project-name').value.trim();
+    const desc = document.getElementById('project-desc').value.trim();
+
+    if (!name) {
+        showMessage('Give your project a name.');
+        return;
+    }
+
+    const selectedFeatures = [];
+    let totalBugRisk = 0;
+    let totalRevenueBonus = 0;
+
+    document.querySelectorAll('#feature-list input:checked').forEach(cb => {
+        const f = ALL_FEATURES.find(f => f.id === cb.dataset.id);
+        if (f) {
+            selectedFeatures.push(f);
+            totalBugRisk += f.bugRisk;
+            totalRevenueBonus += f.revenueBonus;
+
+            if (f.rpCost > 0 && !state.unlockedFeatures.includes(f.id)) {
+                state.researchPoints -= f.rpCost;
+                state.unlockedFeatures.push(f.id);
+                document.getElementById('research').textContent = state.researchPoints;
+            }
+        }
+    });
+
+    state.project = {
+        name,
+        desc,
+        features: selectedFeatures,
+        bugRisk: totalBugRisk,
+        revenueBonus: totalRevenueBonus,
+        weeksInDev: 0,
+    };
+
+    document.getElementById('project-modal').classList.add('hidden');
+    document.getElementById('project-name').value = '';
+    document.getElementById('project-desc').value = '';
+
+    showMessage(`🚀 Project "${name}" started! Ship when ready.`);
+    updateProjectPanel();
+});
+
+function updateProjectPanel() {
+    const panel = document.getElementById('project-panel');
+    const info = document.getElementById('project-info');
+
+    if (!state.project) {
+        panel.classList.add('hidden');
+        return;
+    }
+
+    panel.classList.remove('hidden');
+    const p = state.project;
+
+    info.innerHTML = `
+    <div style="color: var(--accent); font-weight: bold; margin-bottom: 6px;">📦 ${p.name}</div>
+    <div style="color: var(--text-sec); font-size: 0.75rem; margin-bottom: 8px;">${p.desc}</div>
+    ${p.features.map(f => `<div class="stat-row">${f.name} <span style="color: var(--good)">+$${f.revenueBonus}</span></div>`).join('')}
+    <div class="stat-row" style="margin-top: 6px;">In dev <span>${p.weeksInDev}w</span></div>
+    <div class="stat-row">Bug risk <span style="color: var(--warn)">${p.bugRisk}</span></div>
+    <button class="action-btn" id="btn-ship" style="margin-top: 10px;">🚢 Ship Project</button>
+    `;
+
+    document.getElementById('btn-ship').addEventListener('click', shipProject);
+}
+
+function shipProject() {
+    const p = state.project;
+    if (!p) return;
+
+    const bugPenalty = state.product.bugs * 3;
+    const stabilityBonus = state.product.stability;
+    const reputationBonus = state.reputation;
+    const score = stabilityBonus + reputationBonus - bugPenalty;
+
+    if (score >= 120) {
+        state.money += p.revenueBonus * 4;
+        state.reputation = Math.min(100, state.reputation + 10);
+        showMoneyFloat(p.revenueBonus * 4, 'money');
+        showMessage(`🎉 "${p.name}" shipped successfully! Great reception.`);
+    } else if (score >= 60) {
+        state.money += p.revenueBonus * 2;
+        showMoneyFloat(p.revenueBonus * 2, 'money');
+        showMessage(`📦 "${p.name}" shipped. Decent reception.`);
+    } else {
+        state.reputation = Math.max(0, state.reputation - 15);
+        state.money -= 1000;
+        showMoneyFloat(-1000, 'money');
+        showMessage(`💥 "${p.name}" flopped. Too many bugs.`);
+    }
+
+    document.getElementById('money').textContent = '$' + state.money.toLocaleString();
+    document.getElementById('reputation').textContent = state.reputation;
+    state.project = null;
+    setTimeout(() => {
+        document.getElementById('event-box').innerHTML = 'Awaiting decisions...';
+    }, 3000);
+}
+
+window.onerror = function(msg, url, line) {
+    console.error('Game error:', msg, 'at line', line);
+};
+
+// Debug state viewer
+window.state = state; // Safe global for console inspection
+console.log('Fixed game loaded. Use console.log(state) to inspect. Clear localStorage if issues persist.');
+
+const DEV_NAMES = ['Alex', 'Jordan', 'Sam', 'Riley', 'Casey', 'Morgan', 'Drew', 'Blake'];
+const DESIGNER_NAMES = ['Mia', 'Lena', 'Kai', 'Nova', 'Zara', 'Eli', 'Soren', 'Iris'];
+const MANAGER_NAMES = ['Dana', 'Chris', 'Pat', 'Robin', 'Quinn', 'Jamie', 'Taylor', 'Avery'];
+
+const ROLE_NAMES = { Dev: DEV_NAMES, Designer: DESIGNER_NAMES, Manager: MANAGER_NAMES };
+
+function generateCandidates(role) {
+    const names = ROLE_NAMES[role];
+    const used = state.employees.map(e => e.name);
+    const available = names.filter(n => !used.includes(n));
+
+    const candidates = [];
+    for (let i = 0; i < 3; i++) {
+        const name = available[Math.floor(Math.random() * available.length)] || role + ' ' + (i + 1);
+        const salary = 600 + Math.floor(Math.random() * 5) * 100;
+
+        let skills = {};
+        if (role === 'Dev') {
+            skills = {
+                bugFix: Math.floor(Math.random() * 3) + 1,
+                speed: Math.floor(Math.random() * 3) + 1,
+                researchBonus: Math.floor(Math.random() * 2),
+            };
+        } else if (role === 'Designer') {
+            skills = {
+                reputationBonus: Math.floor(Math.random() * 3) + 1,
+                speed: Math.floor(Math.random() * 3) + 1,
+                motivationAura: Math.floor(Math.random() * 2),
+            };
+        } else if (role === 'Manager') {
+            skills = {
+                motivationBonus: Math.floor(Math.random() * 3) + 1,
+                costReduction: Math.floor(Math.random() * 2),
+                eventChanceReduction: Math.floor(Math.random() * 2),
+            };
+        }
+
+        candidates.push({ name, role, salary, skills });
+    }
+    return candidates;
+}
+
+let currentCandidates = [];
+let selectedCandidate = null;
+
+function openHireModal() {
+    const modal = document.getElementById('hire-modal');
+    document.getElementById('hire-candidates').classList.add('hidden');
+    document.getElementById('btn-confirm-hire').style.display = 'none';
+    document.querySelectorAll('.hire-role-btn').forEach(b => b.classList.remove('selected'));
+    selectedCandidate = null;
+    modal.classList.remove('hidden');
+}
+
+document.querySelectorAll('.hire-role-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.hire-role-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        const role = btn.dataset.role;
+        currentCandidates = generateCandidates(role);
+        renderCandidates(currentCandidates);
+        document.getElementById('hire-candidates').classList.remove('hidden');
+        document.getElementById('btn-confirm-hire').style.display = '';
+        selectedCandidate = null;
+    });
+});
+
+function renderCandidates(candidates) {
+    const list = document.getElementById('candidate-list');
+    list.innerHTML = '';
+    candidates.forEach((c, i) => {
+        const card = document.createElement('div');
+        card.className = 'candidate-card';
+
+        let skillText = '';
+        if (c.role === 'Dev') {
+            skillText = `🐛 Bug Fix +${c.skills.bugFix} | ⚡ Speed +${c.skills.speed} | 🔬 RP +${c.skills.researchBonus}`;
+        } else if (c.role === 'Designer') {
+            skillText = `⭐ Reputation +${c.skills.reputationBonus}/wk | ⚡ Speed +${c.skills.speed} | 😊 Morale aura +${c.skills.motivationAura}`;
+        } else {
+            skillText = `😊 Motivation +${c.skills.motivationBonus}/wk | 💰 Cost -${c.skills.costReduction}% | 🛡 Event risk -${c.skills.eventChanceReduction}%`;
+        }
+
+        card.innerHTML = `
+            <div class="candidate-name">${c.name} <span class="candidate-salary">$${c.salary}/wk</span></div>
+            <div class="candidate-stats">${skillText}</div>
+        `;
+        card.addEventListener('click', () => {
+            list.querySelectorAll('.candidate-card').forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+            selectedCandidate = candidates[i];
+        });
+        list.appendChild(card);
+    });
+}
+
+document.getElementById('btn-confirm-hire').addEventListener('click', () => {
+    if (!selectedCandidate) {
+        showMessage('Select a candidate first.');
+        return;
+    }
+    const c = selectedCandidate;
+    state.money -= 1500;
+    showMoneyFloat(-1500, 'money');
+
+    const id = state.employees.length;
+    const emp = createEmployee(id, c.role);
+    emp.name = c.name;
+    emp.salary = c.salary;
+    emp.skills = c.skills;
+    emp.energy = 100;
+    emp.motivation = 100;
+    state.employees.push(emp);
+
+    document.getElementById('money').textContent = '$' + state.money.toLocaleString();
+    document.getElementById('employees').textContent = state.employees.length;
+    document.getElementById('hire-modal').classList.add('hidden');
+    showMessage(`👤 ${c.name} joined as ${c.role}!`);
+});
+
+document.getElementById('btn-cancel-hire').addEventListener('click', () => {
+    document.getElementById('hire-modal').classList.add('hidden');
+});
+
 gameLoop();
+
 
 canvas.addEventListener('click', function(e) {
     const rect = canvas.getBoundingClientRect();
@@ -702,22 +1217,13 @@ document.getElementById('btn-hire').addEventListener('click', function() {
         return;
     }
     if (state.employees.length >= 6) {
-        showMessage('No more desk space. Expand first.')
+        showMessage('No more desk space. Expand first.');
         return;
     }
-
-    state.money -= 1500;
-    showMoneyFloat(-1500, 'money');
-    const id = state.employees.length;
-    const newEmp = createEmployee(id);
-    newEmp.energy = 100;
-    newEmp.motivation = 100;
-    state.employees.push(newEmp);
-
-    document.getElementById('money').textContent = '$' + state.money.toLocaleString();
-    document.getElementById('employees').textContent = state.employees.length;
-    showMessage(`👤 New ${newEmp.role} hired!`);
+    openHireModal();
 });
+
+
 
 document.getElementById('btn-fix-bugs').addEventListener('click', function() {
     if (state.money < 800) {
@@ -759,6 +1265,160 @@ document.getElementById('btn-rest').addEventListener('click', function() {
     showMessage('Team took a break. Energy restored.');
 });
 
+document.getElementById('btn-feature').addEventListener('click', function() {
+    if (!state.project) {
+        showMessage('No active project. Start a project first.');
+        return;
+    }
+
+    const p = state.project;
+    const currentIds = p.features.map(f => f.id);
+    const available = ALL_FEATURES.filter(f => !currentIds.includes(f.id) && (f.rpCost === 0 || state.researchPoints >= f.rpCost || state.unlockedFeatures.includes(f.id)));
+
+    if (available.length === 0) {
+        showMessage('No features available to add. Earn more RP to unlock.');
+        return;
+    }
+
+    if (p.features.length >= 3) {
+        openReplaceFeatureModal(available);
+    } else {
+        openAddFeatureModal(available);
+    }
+});
+
+function openAddFeatureModal(available) {
+    const modal = document.getElementById('project-modal');
+    const featureList = document.getElementById('feature-list');
+    document.getElementById('project-modal-title').textContent = '⚙️ Add Feature';
+    document.getElementById('project-name').closest('div').style.display = 'none';
+    document.getElementById('project-desc').closest('div').style.display = 'none';
+
+    featureList.innerHTML = '';
+    available.forEach(f => {
+        const div = document.createElement('div');
+        div.className = 'feature-option';
+        div.innerHTML = `
+            <input type="radio" name="add-feature" data-id="${f.id}">
+            <div>
+                <div style="font-weight: bold; color: var(--text)">${f.name}</div>
+                <div style="font-size: 0.75rem">${f.desc}</div>
+            </div>
+            <div class="rp-cost">${f.rpCost > 0 && !state.unlockedFeatures.includes(f.id) ? `🔬 ${f.rpCost} RP` : `+$${f.revenueBonus}/wk`}</div>
+        `;
+        div.addEventListener('click', () => {
+            featureList.querySelectorAll('.feature-option').forEach(d => d.classList.remove('selected'));
+            div.classList.add('selected');
+            div.querySelector('input').checked = true;
+        });
+        featureList.appendChild(div);
+    });
+
+    document.getElementById('btn-start-project').textContent = '✚ Add Feature';
+    document.getElementById('btn-start-project').onclick = () => {
+        const selected = document.querySelector('input[name="add-feature"]:checked');
+        if (!selected) { showMessage('Select a feature.'); return; }
+        const f = ALL_FEATURES.find(f => f.id === selected.dataset.id);
+        if (f.rpCost > 0 && !state.unlockedFeatures.includes(f.id)) {
+            state.researchPoints -= f.rpCost;
+            state.unlockedFeatures.push(f.id);
+            document.getElementById('research').textContent = state.researchPoints;
+        }
+        state.project.features.push(f);
+        state.project.bugRisk += f.bugRisk;
+        state.project.revenueBonus += f.revenueBonus;
+        document.getElementById('project-modal').classList.add('hidden');
+        resetProjectModal();
+        updateProjectPanel();
+        showMessage(`⚙️ "${f.name}" added to ${state.project.name}.`);
+    };
+
+    modal.classList.remove('hidden');
+}
+
+function openReplaceFeatureModal(available) {
+    const p = state.project;
+    const modal = document.getElementById('project-modal');
+    const featureList = document.getElementById('feature-list');
+    document.getElementById('project-modal-title').textContent = '🔄️ Replace a Feature';
+    document.getElementById('project-name').closest('div').style.display = 'none';
+    document.getElementById('project-desc').closest('div').style.display = 'none';
+
+    featureList.innerHTML = `
+    <div class="panel-title" style="margin-bottom: 6px;">Remove which feature?</div>
+    ${p.features.map((f, i) => `
+        <div class="feature-option" id="remove-opt-${i}" data-index="${i}">
+            <input type="radio" name="remove-feature" data-index="${i}">
+            <div><div style="font-weight:bold;color:var(--text)">${f.name}</div></div>
+            <div class="rp-cost" style="color:var(--danger)">remove</div>
+        </div>
+    `).join('')}
+    <div class="panel-title" style="margin: 10px 0 6px;">Add which feature?</div>
+    ${available.map(f => `
+        <div class="feature-option" id="add-opt-${f.id}" data-id="${f.id}">
+            <input type="radio" name="add-feature2" data-id="${f.id}">
+            <div>
+                <div style="font-weight:bold;color:var(--text)">${f.name}</div>
+                <div style="font-size:0.75rem">${f.desc}</div>
+            </div>
+            <div class="rp-cost">${f.rpCost > 0 && !state.unlockedFeatures.includes(f.id) ? `🔬 ${f.rpCost} RP` : `+$${f.revenueBonus}/wk`}</div>
+        </div>
+        `).join('')}
+    `;
+
+    featureList.querySelectorAll('[id^="remove-opt-"]').forEach(div => {
+        div.addEventListener('click', () => {
+            featureList.querySelectorAll('[id^="remove-opt-"]').forEach(d => d.classList.remove('selected'));
+            div.classList.add('selected');
+            div.querySelector('input').checked = true;
+        });
+    });
+    featureList.querySelectorAll('[id^="add-opt-"]').forEach(div => {
+        div.addEventListener('click', () => {
+            featureList.querySelectorAll('[id^="add-opt-"]').forEach(d => d.classList.remove('selected'));
+            div.classList.add('selected');
+            div.querySelector('input').checked = true;
+        });
+    });
+
+    document.getElementById('btn-start-project').textContent = '🔄️ Replace Feature';
+    document.getElementById('btn-start-project').onclick = () => {
+        const removeInput = document.querySelector('input[name="remove-feature"]:checked');
+        const addInput = document.querySelector('input[name="add-feature2"]:checked');
+        if (!removeInput || !addInput) { showMessage('Select both a feature to remove and one to add.'); return; }
+
+        const removeIndex = parseInt(removeInput.dataset.index);
+        const addFeature = ALL_FEATURES.find(f => f.id === addInput.dataset.id);
+        const removed = p.features.splice(removeIndex, 1)[0];
+        p.bugRisk -= removed.bugRisk;
+        p.revenueBonus -= removed.revenueBonus;
+
+        if (addFeature.rpCost > 0 && !state.unlockedFeatures.includes(addFeature.id)) {
+            state.researchPoints -= addFeature.rpCost;
+            state.unlockedFeatures.push(addFeature.id);
+            document.getElementById('research').textContent = state.researchPoints;
+        }
+        p.features.push(addFeature);
+        p.bugRisk += addFeature.bugRisk;
+        p.revenueBonus += addFeature.revenueBonus;
+
+        document.getElementById('project-modal').classList.add('hidden');
+        resetProjectModal();
+        updateProjectPanel();
+        showMessage(`🔄️ Replaced "${removed.name}" with "${addFeature.name}".`);
+    };
+
+    modal.classList.remove('hidden');
+}
+
+function resetProjectModal() {
+    document.getElementById('project-modal-title').textContent = '🚀 New Project';
+    document.getElementById('project-name').closest('div').style.display = '';
+    document.getElementById('project-desc').closest('div').style.display = '';
+    document.getElementById('btn-start-project').textContent = '▶ Start Project';
+    document.getElementById('btn-start-project').onclick = null;
+}
+
 function showMessage(text) {
     const box = document.getElementById('event-box');
     box.innerHTML = `<span style="color: var(--accent)">${text}</span>`;
@@ -766,3 +1426,5 @@ function showMessage(text) {
         box.innerHTML = 'Awaiting decisions...';
     }, 3000);
 }
+
+document.getElementById('btn-new-project').addEventListener('click', openProjectModal);

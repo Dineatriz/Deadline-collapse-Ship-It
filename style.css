@@ -239,3 +239,247 @@ body {
     0% { opacity: 1; transform: translateY(0); }
     100% { opacity: 0; transform: translateY(-40px); }
 }
+
+#week-progress-container {
+    width: 120px;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+#week-progress-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    border-radius: 3px;
+    transition: width 0.1s linear;
+}
+
+#summary-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+#summary-modal.hidden {
+    display: none;
+}
+
+#summary-modal-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 32px;
+    width: 460px;
+    max-width: 90vw;
+}
+
+#summary-modal-title {
+    font-size: 1.1rem;
+    font-weight: bold;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+#summary-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    color: var(--text-sec);
+}
+
+.summary-row span {
+    font-weight: bold;
+    color: var(--text);
+}
+
+.summary-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 6px 0;
+}
+
+#project-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+#project-modal.hidden {
+    display: none;
+}
+
+#project-modal-box {
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 28px;
+    width: 480px;
+    max-width: 90vw;
+}
+
+#project-modal-title {
+    color: var(--accent);
+    font-weight: bold;
+    font-size: 1rem;
+    margin-bottom: 20px;
+}
+
+#project-name, #project-desc {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    padding: 8px;
+    border-radius: 4px;
+    margin-top: 4px;
+    resize: none;
+}
+
+#project-name:focus, #project-desc:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.feature-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    margin-bottom: 6px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    color: var(--text-sec);
+}
+
+.feature-option.selected {
+    border-color: var(--accent);
+    color: var(--text);
+}
+
+.feature-option.locked {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.feature-option input[type="checkbox"] {
+    accent-color: var(--accent);
+}
+
+.rp-cost {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: var(--warn);
+}
+
+#project-panel.hidden {
+    display: none;
+}
+
+#project-info {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    font-size: 0.82rem;
+}
+
+#hire-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+#hire-modal.hidden { display: none; }
+
+#hire-modal-box {
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 28px;
+    width: 460px;
+    max-width: 90vw;
+}
+
+#hire-modal-title {
+    color: var(--accent);
+    font-weight: bold;
+    font-size: 1rem;
+    margin-bottom: 16px;
+}
+
+.hire-role-btn.selected {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+#candidate-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.candidate-card {
+    background: #13141a;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.candidate-card:hover {
+    border-color: var(--accent);
+    background: #1a1b22;
+}
+
+.candidate-card.selected {
+    border-color: var(--accent);
+    background: #22181a;
+}
+
+.candidate-card .candidate-name {
+    font-weight: bold;
+    color: var(--text);
+    margin-bottom: 4px;
+}
+
+.candidate-card .candidate-stats {
+    display: flex;
+    gap: 12px;
+    color: var(--text-sec);
+    font-size: 0.75rem;
+}
+
+.candidate-card .candidate-salary {
+    float: right;
+    color: var(--danger);
+    font-size: 0.75rem;
+}
